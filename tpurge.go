@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 func main() {
@@ -16,38 +17,44 @@ func main() {
 	}
 
 	if isRunning {
-		// Close Microsoft Teams
-		err := exec.Command("taskkill", "/F", "/IM", "Teams.exe").Run()
-		if err != nil {
-			fmt.Println("Failed to close Teams:", err)
-			return
-		}
+		// Inform the user to close Microsoft Teams
+		fmt.Println("Microsoft Teams is running. Please close it and run the program again.")
+		return
 	}
 
-	// Folders to purge
+	// Get the AppData path
+	appDataPath := os.Getenv("APPDATA")
+
+	// Folders to check
 	folders := []string{
-		"%appdata%\\Microsoft\\teams\\tmp",
-		"%appdata%\\Microsoft\\teams\\Blob_storage",
-		"%appdata%\\Microsoft\\teams\\Cache",
-		"%appdata%\\Microsoft\\teams\\IndexedDB",
-		"%appdata%\\Microsoft\\teams\\GPUCache",
-		"%appdata%\\Microsoft\\teams\\databases",
-		"%appdata%\\Microsoft\\teams\\Local Storage",
-		"%appdata%\\Microsoft\\teams\\Application Cache\\Cache",
+		appDataPath + "\\Microsoft\\teams\\tmp",
+		appDataPath + "\\Microsoft\\teams\\Blob_storage",
+		appDataPath + "\\Microsoft\\teams\\Cache",
+		appDataPath + "\\Microsoft\\teams\\IndexedDB",
+		appDataPath + "\\Microsoft\\teams\\GPUCache",
+		appDataPath + "\\Microsoft\\teams\\databases",
+		appDataPath + "\\Microsoft\\teams\\Local Storage",
 	}
 
 	for _, folder := range folders {
-		// Expand environment variables
-		folderPath := os.ExpandEnv(folder)
-		err := filepath.Walk(folderPath, func(path string, info os.FileInfo, err error) error {
+		err := filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}
-			// Delete files and folders
-			return os.RemoveAll(path)
+			// Skip the root folder itself and any subdirectories
+			if path == folder || info.IsDir() {
+				return nil
+			}
+			// Delete the file
+			err = os.Remove(path)
+			if err != nil {
+				return err
+			}
+			fmt.Println("Deleted file:", path)
+			return nil
 		})
 		if err != nil {
-			fmt.Println("Error deleting files in folder", folder, ":", err)
+			fmt.Println("Error processing folder", folder, ":", err)
 			return
 		}
 	}
@@ -61,5 +68,5 @@ func isTeamsRunning() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return len(out) > 0, nil
+	return strings.Contains(string(out), "Teams.exe"), nil
 }
